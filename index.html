@@ -22,6 +22,22 @@
       --text:         #f0f0f0;
       --muted:        #888;
       --ease:         150ms ease;
+      --cover-ph:     #222;
+      --shadow-sm:    0 4px 20px rgba(0,0,0,.5);
+      --shadow-lg:    0 12px 40px rgba(0,0,0,.72);
+    }
+
+    [data-theme="light"] {
+      --bg:        #f3f4f6;
+      --surface:   #ffffff;
+      --card:      #f9fafb;
+      --border:    #e5e7eb;
+      --hover:     #eff0f2;
+      --text:      #111827;
+      --muted:     #6b7280;
+      --cover-ph:  #d1d5db;
+      --shadow-sm: 0 4px 20px rgba(0,0,0,.10);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,.14);
     }
 
     body {
@@ -128,7 +144,7 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 8px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, .72);
+      box-shadow: var(--shadow-lg);
       z-index: 100;
       overflow: hidden;
       display: none;
@@ -162,7 +178,7 @@
       border-radius: 4px;
       flex-shrink: 0;
       object-fit: cover;
-      background: #222;
+      background: var(--cover-ph);
       display: block;
     }
 
@@ -170,7 +186,7 @@
       width: 40px; height: 56px;
       border-radius: 4px;
       flex-shrink: 0;
-      background: #222;
+      background: var(--cover-ph);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -374,7 +390,7 @@
       border-radius: 8px;
       font-size: 13px;
       font-weight: 500;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, .5);
+      box-shadow: var(--shadow-sm);
       opacity: 0;
       pointer-events: none;
       transition: opacity 180ms ease, transform 180ms ease;
@@ -385,6 +401,24 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
+
+    /* ── Theme Toggle ────────────────────────────────────────── */
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 200;
+      transition: background var(--ease), border-color var(--ease), transform var(--ease);
+    }
+
+    .theme-toggle:hover { background: var(--hover); transform: scale(1.08); }
 
     /* ── Mobile ──────────────────────────────────────────────── */
     @media (max-width: 700px) {
@@ -457,6 +491,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
+  <button id="themeToggle" class="theme-toggle" title="Toggle light / dark mode">🌙</button>
 
   <script>
     'use strict';
@@ -836,6 +871,24 @@
       userList = [];
       saveList();
       renderList();
+    });
+
+    // ── Theme ──────────────────────────────────────────────────
+    const themeToggle = document.getElementById('themeToggle');
+
+    function applyTheme(light) {
+      document.documentElement.dataset.theme = light ? 'light' : '';
+      themeToggle.textContent = light ? '☀️' : '🌙';
+      themeToggle.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+    }
+
+    const savedLight = localStorage.getItem('tasteEvaluator_lightMode') === 'true';
+    applyTheme(savedLight);
+
+    themeToggle.addEventListener('click', () => {
+      const nowLight = document.documentElement.dataset.theme !== 'light';
+      localStorage.setItem('tasteEvaluator_lightMode', nowLight);
+      applyTheme(nowLight);
     });
 
     // ── Init ───────────────────────────────────────────────────
