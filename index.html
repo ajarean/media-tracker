@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taste Evaluator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0d0d0d;
+      --surface:      #141414;
+      --card:         #1c1c1c;
+      --border:       #2a2a2a;
+      --hover:        #252525;
+      --accent-anime: #3b82f6;
+      --accent-manga: #a855f7;
+      --accent-ln:    #f59e0b;
+      --text:         #f0f0f0;
+      --muted:        #888;
+      --ease:         150ms ease;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    /* ── Left Panel ──────────────────────────────────────────── */
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .branding h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .branding p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── Segmented Control ───────────────────────────────────── */
+    .seg-ctrl {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+    }
+
+    .seg-btn {
+      flex: 1;
+      padding: 7px 8px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      background: none;
+      border: none;
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .seg-btn:hover:not(.active) { background: var(--hover); color: var(--text); }
+
+    .seg-btn.active[data-type="anime"]      { background: var(--accent-anime); color: #fff; }
+    .seg-btn.active[data-type="manga"]      { background: var(--accent-manga); color: #fff; }
+    .seg-btn.active[data-type="lightnovel"] { background: var(--accent-ln);   color: #000; }
+
+    /* ── Search ──────────────────────────────────────────────── */
+    .search-wrap { position: relative; }
+
+    .search-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color var(--ease);
+    }
+
+    .search-input::placeholder { color: var(--muted); }
+
+    .search-input[data-type="anime"]:focus      { border-color: var(--accent-anime); }
+    .search-input[data-type="manga"]:focus      { border-color: var(--accent-manga); }
+    .search-input[data-type="lightnovel"]:focus { border-color: var(--accent-ln); }
+
+    .search-err {
+      font-size: 12px;
+      color: #ef4444;
+      margin-top: 6px;
+      display: none;
+    }
+
+    /* ── Dropdown ────────────────────────────────────────────── */
+    .dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, .72);
+      z-index: 100;
+      overflow: hidden;
+      display: none;
+    }
+
+    .dropdown.open { display: block; }
+
+    .drop-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background var(--ease);
+      user-select: none;
+    }
+
+    .drop-item:not(.added):hover { background: var(--hover); }
+    .drop-item.added { opacity: .38; cursor: default; }
+
+    .drop-status {
+      padding: 14px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* ── Covers ──────────────────────────────────────────────── */
+    .cover {
+      width: 40px; height: 56px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      object-fit: cover;
+      background: #222;
+      display: block;
+    }
+
+    .cover-ph {
+      width: 40px; height: 56px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: #222;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Item Info ───────────────────────────────────────────── */
+    .item-info { flex: 1; min-width: 0; }
+
+    .item-title {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .item-year { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Badges ──────────────────────────────────────────────── */
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .badge-anime      { background: rgba(59,130,246,.18); color: var(--accent-anime); }
+    .badge-manga      { background: rgba(168,85,247,.18); color: var(--accent-manga); }
+    .badge-lightnovel { background: rgba(245,158,11,.18); color: var(--accent-ln); }
+
+    .check { color: #4ade80; font-size: 15px; flex-shrink: 0; }
+
+    .attribution { font-size: 11px; color: var(--muted); }
+
+    /* ── Right Panel ─────────────────────────────────────────── */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .list-header { font-size: 15px; font-weight: 600; }
+
+    .list-body {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .list-empty {
+      font-size: 13px;
+      color: var(--muted);
+      padding: 20px 0;
+      text-align: center;
+    }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px 8px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: background var(--ease);
+    }
+
+    .list-item:hover { background: var(--hover); }
+
+    .list-item[data-type="anime"]      { border-left: 3px solid var(--accent-anime); }
+    .list-item[data-type="manga"]      { border-left: 3px solid var(--accent-manga); }
+    .list-item[data-type="lightnovel"] { border-left: 3px solid var(--accent-ln); }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: color var(--ease), background var(--ease);
+    }
+
+    .remove-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, .12);
+    }
+
+    /* ── Prompt Mode ─────────────────────────────────────────── */
+    .prompt-mode {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .prompt-mode-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .mode-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 7px 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background var(--ease), color var(--ease), border-color var(--ease);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .mode-btn:hover:not(.active) {
+      background: var(--hover);
+      color: var(--text);
+    }
+
+    .mode-btn.active {
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .mode-btn.active[data-mode="analytical"] { background: #3b82f6; }
+    .mode-btn.active[data-mode="roast"]      { background: #ef4444; }
+    .mode-btn.active[data-mode="therapist"]  { background: #22c55e; color: #000; }
+
+    /* ── Actions ─────────────────────────────────────────────── */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+
+    .btn-copy {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent-anime);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity var(--ease), transform var(--ease);
+    }
+
+    .btn-copy:hover  { opacity: .88; transform: translateY(-1px); }
+    .btn-copy:active { transform: none; opacity: .78; }
+
+    .btn-clear {
+      width: 100%;
+      padding: 8px;
+      background: none;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      transition: color var(--ease), border-color var(--ease), background var(--ease);
+    }
+
+    .btn-clear:hover {
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, .35);
+      background: rgba(239, 68, 68, .06);
+    }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Mobile ──────────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      .app {
+        grid-template-columns: 1fr;
+        padding: 24px 16px;
+        gap: 32px;
+      }
+
+      .list-body {
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- ── Left Panel ── -->
+    <section class="left-panel">
+      <div class="branding">
+        <h1>Taste Evaluator</h1>
+        <p>Build your list. Discover your taste.</p>
+      </div>
+
+      <div class="seg-ctrl" role="group" aria-label="Media type">
+        <button class="seg-btn active" data-type="anime">Anime</button>
+        <button class="seg-btn" data-type="manga">Manga</button>
+        <button class="seg-btn" data-type="lightnovel">Light Novel</button>
+      </div>
+
+      <div class="search-wrap">
+        <input
+          id="searchInput"
+          class="search-input"
+          type="text"
+          placeholder="Search titles..."
+          autocomplete="off"
+          spellcheck="false"
+          data-type="anime"
+        />
+        <div id="dropdown" class="dropdown" role="listbox"></div>
+        <div id="searchErr" class="search-err"></div>
+      </div>
+
+      <p class="attribution">Powered by MyAnimeList / Jikan</p>
+    </section>
+
+    <!-- ── Right Panel ── -->
+    <section class="right-panel">
+      <h2 id="listHeader" class="list-header">Your List (0 items)</h2>
+      <div id="listBody" class="list-body">
+        <p class="list-empty">Search for titles to add them to your list.</p>
+      </div>
+      <div class="actions">
+        <div class="prompt-mode">
+          <span class="prompt-mode-label">Prompt Style</span>
+          <div class="mode-btns" role="group">
+            <button class="mode-btn active" data-mode="analytical">🧠 Analytical</button>
+            <button class="mode-btn" data-mode="roast">🔥 Roast</button>
+            <button class="mode-btn" data-mode="therapist">🛋 Therapist</button>
+          </div>
+        </div>
+        <button id="btnCopy" class="btn-copy">📋 Copy LLM Prompt</button>
+        <button id="btnClear" class="btn-clear">🗑 Clear List</button>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    'use strict';
+
+    const STORAGE_KEY = 'tasteEvaluator_v1';
+    const BASE        = 'https://api.jikan.moe/v4';
+    const DEBOUNCE_MS = 400;
+
+    let mediaType  = 'anime';
+    let userList   = [];
+    let dropCache  = [];
+    let debTimer   = null;
+    let fetchCtrl  = null;
+
+    // ── Storage ────────────────────────────────────────────────
+    function loadList() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) userList = JSON.parse(raw);
+      } catch { userList = []; }
+    }
+
+    function saveList() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userList));
+    }
+
+    function inList(malId, type) {
+      return userList.some(i => i.malId === malId && i.type === type);
+    }
+
+    // ── DOM Helpers ────────────────────────────────────────────
+    function badgeClass(type) {
+      return type === 'anime' ? 'badge-anime'
+           : type === 'manga' ? 'badge-manga'
+                              : 'badge-lightnovel';
+    }
+
+    function badgeLabel(type) {
+      return type === 'anime' ? 'Anime' : type === 'manga' ? 'Manga' : 'LN';
+    }
+
+    function makeBadge(type) {
+      const b = document.createElement('span');
+      b.className = `badge ${badgeClass(type)}`;
+      b.textContent = badgeLabel(type);
+      return b;
+    }
+
+    function makePlaceholder(type) {
+      const div = document.createElement('div');
+      div.className = 'cover-ph';
+      div.appendChild(makeBadge(type));
+      return div;
+    }
+
+    function makeCover(url, type) {
+      if (!url) return makePlaceholder(type);
+      const img = document.createElement('img');
+      img.className = 'cover';
+      img.src = url;
+      img.alt = '';
+      img.onerror = () => img.parentNode?.replaceChild(makePlaceholder(type), img);
+      return img;
+    }
+
+    function makeItemInfo(title, year) {
+      const div = document.createElement('div');
+      div.className = 'item-info';
+      const t = document.createElement('div');
+      t.className = 'item-title';
+      t.textContent = title;
+      const y = document.createElement('div');
+      y.className = 'item-year';
+      y.textContent = year || 'Unknown year';
+      div.appendChild(t);
+      div.appendChild(y);
+      return div;
+    }
+
+    // ── Render List ────────────────────────────────────────────
+    function renderList() {
+      const body   = document.getElementById('listBody');
+      const header = document.getElementById('listHeader');
+      const n = userList.length;
+      header.textContent = `Your List (${n} item${n !== 1 ? 's' : ''})`;
+      body.innerHTML = '';
+
+      if (n === 0) {
+        const p = document.createElement('p');
+        p.className = 'list-empty';
+        p.textContent = 'Search for titles to add them to your list.';
+        body.appendChild(p);
+        return;
+      }
+
+      userList.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+        row.dataset.type = item.type;
+
+        row.appendChild(makeCover(item.coverUrl, item.type));
+        row.appendChild(makeItemInfo(item.title, item.year));
+        row.appendChild(makeBadge(item.type));
+
+        const rm = document.createElement('button');
+        rm.className = 'remove-btn';
+        rm.title = 'Remove';
+        rm.textContent = '×';
+        rm.addEventListener('click', () => {
+          userList = userList.filter(i => !(i.malId === item.malId && i.type === item.type));
+          saveList();
+          renderList();
+          renderDrop(dropCache);
+        });
+        row.appendChild(rm);
+
+        body.appendChild(row);
+      });
+    }
+
+    // ── Render Dropdown ────────────────────────────────────────
+    function renderDrop(results) {
+      dropCache = results;
+      const dd = document.getElementById('dropdown');
+      dd.innerHTML = '';
+
+      if (!results.length) { dd.classList.remove('open'); return; }
+
+      results.forEach(r => {
+        const type  = mediaType;
+        const title = (r.title_english && r.title_english.trim()) ? r.title_english : r.title;
+        const year  = type === 'anime'
+          ? r.aired?.prop?.from?.year
+          : r.published?.prop?.from?.year;
+        const coverUrl = r.images?.jpg?.small_image_url ?? null;
+        const malId    = r.mal_id;
+        const added    = inList(malId, type);
+
+        const row = document.createElement('div');
+        row.className = 'drop-item' + (added ? ' added' : '');
+        row.setAttribute('role', 'option');
+
+        row.appendChild(makeCover(coverUrl, type));
+        row.appendChild(makeItemInfo(title, year));
+        row.appendChild(makeBadge(type));
+
+        if (added) {
+          const ck = document.createElement('span');
+          ck.className = 'check';
+          ck.textContent = '✓';
+          row.appendChild(ck);
+        } else {
+          row.addEventListener('click', () => {
+            userList.push({ malId, title, year: year ?? null, type, coverUrl });
+            saveList();
+            renderList();
+            renderDrop(dropCache);
+          });
+        }
+
+        dd.appendChild(row);
+      });
+
+      dd.classList.add('open');
+    }
+
+    function hideDrop() {
+      document.getElementById('dropdown').classList.remove('open');
+      dropCache = [];
+    }
+
+    // ── API ────────────────────────────────────────────────────
+    async function doSearch(q) {
+      if (!q.trim()) { hideDrop(); return; }
+
+      if (fetchCtrl) fetchCtrl.abort();
+      fetchCtrl = new AbortController();
+
+      showErr(null);
+
+      const dd = document.getElementById('dropdown');
+      dd.innerHTML = '<div class="drop-status">Searching…</div>';
+      dd.classList.add('open');
+
+      try {
+        let url;
+        if (mediaType === 'anime') {
+          url = `${BASE}/anime?q=${encodeURIComponent(q)}&limit=8&sfw=true`;
+        } else if (mediaType === 'manga') {
+          url = `${BASE}/manga?q=${encodeURIComponent(q)}&type=manga&limit=8&sfw=true`;
+        } else {
+          url = `${BASE}/manga?q=${encodeURIComponent(q)}&type=lightnovel&limit=8&sfw=true`;
+        }
+
+        const res = await fetch(url, {
+          signal: fetchCtrl.signal,
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!res.ok) throw new Error('api-err');
+        const json = await res.json();
+        renderDrop(json.data ?? []);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        hideDrop();
+        showErr('Search unavailable — try again');
+      }
+    }
+
+    function showErr(msg) {
+      const el = document.getElementById('searchErr');
+      el.textContent = msg || '';
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    let promptMode = 'analytical';
+
+    const PROMPTS = {
+      analytical: (anime, manga, ln, fmt) => [
+        "The following is the user's media consumption list across anime, manga, and light novels.",
+        "Analyze their taste profile along these specific axes, in order:",
+        "1. THEMATIC CORE — What 2-3 recurring themes or emotional preoccupations tie the list together? Be specific to the titles, not generic.",
+        "2. GENRE LITERACY — What does the selection reveal about how deeply they know the medium? Are they skimming the surface, working through a specific niche, or showing genuine range?",
+        "3. BLIND SPOTS — What didn't make the favorites list? Focus especially on works *within their own apparent taste territory* that are conspicuously absent — not genres they obviously reject. Do NOT frame this as \"they haven't seen X\" — frame it as \"X didn't resonate enough to include, which suggests...\" What does that specific exclusion reveal?",
+        "4. PERSONA READ — Based purely on these selections, describe the kind of person making this list. Not their demographics — their actual personality, likely self-image, and how they probably talk about media at parties.",
+        "5. ONE-LINE VERDICT — A single brutal, specific sentence summarizing their taste.",
+        "",
+        "Be direct. Do not hedge. Do not summarize plot. Assume the reader knows these works.",
+        '',
+        '**Anime watched:**',
+        fmt(anime),
+        '',
+        '**Manga read:**',
+        fmt(manga),
+        '',
+        '**Light Novels read:**',
+        fmt(ln),
+      ].join('\n'),
+
+      roast: (anime, manga, ln, fmt) => [
+        "The following is someone's list of their favorite anime, manga, and light novels.",
+        "Your job is to roast their taste — hard. You are a brutally witty critic who finds the most embarrassing possible interpretation of every choice they've made.",
+        "",
+        "Structure your roast as follows:",
+        "1. OPENING DIAGNOSIS — One punchy paragraph establishing the overall pathology of this taste profile. Be specific to the actual titles, not generic.",
+        "2. INDIVIDUAL CRIMES — Pick 2-3 of the most roastable specific choices and explain exactly why each one is a red flag. Be precise and cruel.",
+        "3. WHAT THIS SAYS ABOUT THEM — What kind of person has this exact combination of titles in their favorites? Paint a picture. Be mean but accurate.",
+        "4. THE BACKHANDED COMPLIMENT — Find one genuinely defensible thing about their taste and deliver it in the most condescending way possible.",
+        "5. SENTENCE — One closing line, delivered like a verdict.",
+        "",
+        "Rules: No generic insults. Every joke must be specific to the actual titles listed. Assume they've read/watched far more than this — these are just their favorites, which makes it worse.",
+        '',
+        '**Anime watched:**',
+        fmt(anime),
+        '',
+        '**Manga read:**',
+        fmt(manga),
+        '',
+        '**Light Novels read:**',
+        fmt(ln),
+      ].join('\n'),
+
+      therapist: (anime, manga, ln, fmt) => [
+        "The following is a patient's list of their favorite anime, manga, and light novels.",
+        "You are a perceptive therapist conducting an intake session. Analyze what their media consumption reveals about their inner life — with warmth, but without flinching from uncomfortable truths.",
+        "",
+        "Structure your session notes as follows:",
+        "1. PRESENTING PATTERNS — What emotional needs does this list appear to be meeting? What are they seeking in fiction that they may not be finding elsewhere?",
+        "2. CORE WOUND — Based on the recurring themes, what does this taste profile suggest about their relationship with intimacy, failure, control, or identity? Be specific to the titles.",
+        "3. COPING MECHANISM — How are they using fiction? As escapism, as emotional rehearsal, as self-soothing, as a mirror? What does that suggest?",
+        "4. GROWTH EDGE — What kinds of stories are conspicuously absent from their favorites — not because they dislike them, but because they might be too uncomfortable or unfamiliar to seek out?",
+        "5. CLINICIAN'S NOTE — A single honest, compassionate sentence summarizing what you'd want them to reflect on.",
+        "",
+        "Tone: Warm but clear-eyed. You care about them. You're also not going to let them off the hook. Do not pathologize, but do not minimize. Treat their taste as a genuine window into their interior life.",
+        '',
+        '**Anime watched:**',
+        fmt(anime),
+        '',
+        '**Manga read:**',
+        fmt(manga),
+        '',
+        '**Light Novels read:**',
+        fmt(ln),
+      ].join('\n'),
+    };
+
+    // ── Prompt Builder ─────────────────────────────────────────
+    function buildPrompt() {
+      const anime = userList.filter(i => i.type === 'anime');
+      const manga = userList.filter(i => i.type === 'manga');
+      const ln    = userList.filter(i => i.type === 'lightnovel');
+      const fmt = arr =>
+        arr.length
+          ? arr.map(i => `- ${i.title}${i.year ? ` (${i.year})` : ''}`).join('\n')
+          : 'None.';
+      return PROMPTS[promptMode](anime, manga, ln, fmt);
+    }
+
+    // ── Toast ──────────────────────────────────────────────────
+    let toastTm = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTm);
+      toastTm = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
+    // ── Events ─────────────────────────────────────────────────
+
+    // Mode buttons
+    const COPY_LABELS = {
+      analytical: '📋 Copy LLM Prompt',
+      roast:      '🔥 Copy Roast Prompt',
+      therapist:  '🛋 Copy Therapist Prompt',
+    };
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        promptMode = btn.dataset.mode;
+        document.getElementById('btnCopy').textContent = COPY_LABELS[promptMode];
+      });
+    });
+
+    // Segmented control
+    document.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mediaType = btn.dataset.type;
+        const input = document.getElementById('searchInput');
+        input.dataset.type = mediaType;
+        input.value = '';
+        showErr(null);
+        hideDrop();
+      });
+    });
+
+    // Search
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debTimer);
+      const val = searchInput.value;
+      if (!val.trim()) { hideDrop(); showErr(null); return; }
+      debTimer = setTimeout(() => doSearch(val), DEBOUNCE_MS);
+    });
+
+    // Close dropdown on outside interaction
+    document.addEventListener('pointerdown', e => {
+      if (!e.target.closest('.search-wrap')) hideDrop();
+    });
+
+    // Copy LLM Prompt
+    document.getElementById('btnCopy').addEventListener('click', async () => {
+      if (!userList.length) { showToast('Add some titles first'); return; }
+      const text = buildPrompt();
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        Object.assign(ta.style, { position: 'fixed', left: '-9999px', top: '0' });
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      showToast('Copied!');
+    });
+
+    // Clear list
+    document.getElementById('btnClear').addEventListener('click', () => {
+      if (!userList.length) return;
+      userList = [];
+      saveList();
+      renderList();
+    });
+
+    // ── Init ───────────────────────────────────────────────────
+    loadList();
+    renderList();
+  </script>
+</body>
+</html>
