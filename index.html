@@ -63,6 +63,7 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
+      min-width: 0;
     }
 
     .branding h1 {
@@ -203,6 +204,13 @@
       text-overflow: ellipsis;
     }
 
+    .list-item .item-title {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+      word-break: break-word;
+    }
+
     .item-year { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
     /* ── Badges ──────────────────────────────────────────────── */
@@ -229,6 +237,7 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      min-width: 0;
     }
 
     .list-header { font-size: 15px; font-weight: 600; }
