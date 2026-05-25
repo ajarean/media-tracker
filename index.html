@@ -252,7 +252,48 @@
       min-width: 0;
     }
 
+    .list-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
     .list-header { font-size: 15px; font-weight: 600; }
+
+    .btn-group-toggle {
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .3px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 3px 8px;
+      white-space: nowrap;
+      transition: background var(--ease), color var(--ease), border-color var(--ease);
+    }
+
+    .btn-group-toggle:hover { background: var(--hover); color: var(--text); }
+
+    .btn-group-toggle.active {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .type-group-header {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 6px 2px 2px;
+    }
+
+    .type-group-header:first-child { padding-top: 0; }
 
     .list-body {
       display: flex;
@@ -621,7 +662,7 @@
         />
         <div id="dropdown" class="dropdown" role="listbox"></div>
         <div id="searchErr" class="search-err"></div>
-        <div id="searchHint" class="search-hint">Tip: include the series name for accuracy (e.g. "Homura Madoka")</div>
+        <div id="searchHint" class="search-hint">Tip: use the character's full name for accuracy (e.g. "Akemi Homura")</div>
       </div>
 
       <div class="actions">
@@ -651,7 +692,10 @@
 
     <!-- ── Right Panel ── -->
     <section class="right-panel">
-      <h2 id="listHeader" class="list-header">Your List (0 items)</h2>
+      <div class="list-controls">
+        <h2 id="listHeader" class="list-header">Your List (0 items)</h2>
+        <button id="btnGroupToggle" class="btn-group-toggle">Group by type</button>
+      </div>
       <div id="listBody" class="list-body">
         <p class="list-empty">Search for titles to add them to your list.</p>
       </div>
@@ -677,6 +721,7 @@
     let dragSrcIdx = null;
     let dragTgtIdx = null;
     let dragPos    = null; // 'top' | 'bottom'
+    let groupByType = false;
 
     // ── Storage ────────────────────────────────────────────────
     function loadList() {
@@ -774,22 +819,13 @@
         return;
       }
 
-      userList.forEach((item, idx) => {
+      function makeBaseRow(item) {
         const row = document.createElement('div');
         row.className = 'list-item';
         row.dataset.type = item.type;
-        row.draggable = true;
-
-        const handle = document.createElement('span');
-        handle.className = 'drag-handle';
-        handle.textContent = '⠿';
-        handle.setAttribute('aria-hidden', 'true');
-        row.appendChild(handle);
-
         row.appendChild(makeCover(item.coverUrl, item.type));
         row.appendChild(makeItemInfo(item.title, item.type === 'character' ? item.source : item.year));
         row.appendChild(makeBadge(item.type));
-
         const rm = document.createElement('button');
         rm.className = 'remove-btn';
         rm.title = 'Remove';
@@ -801,44 +837,74 @@
           renderDrop(dropCache);
         });
         row.appendChild(rm);
+        return row;
+      }
 
-        // ── Drag events ──
-        row.addEventListener('dragstart', e => {
-          dragSrcIdx = idx;
-          e.dataTransfer.effectAllowed = 'move';
-          requestAnimationFrame(() => row.classList.add('dragging'));
+      if (groupByType) {
+        const GROUPS = [
+          { type: 'anime',       label: 'Anime' },
+          { type: 'manga',       label: 'Manga' },
+          { type: 'lightnovel',  label: 'Light Novels' },
+          { type: 'character',   label: 'Characters' },
+        ];
+        GROUPS.forEach(({ type, label }) => {
+          const items = userList.filter(i => i.type === type);
+          if (!items.length) return;
+          const hdr = document.createElement('p');
+          hdr.className = 'type-group-header';
+          hdr.textContent = label;
+          body.appendChild(hdr);
+          items.forEach(item => body.appendChild(makeBaseRow(item)));
         });
+      } else {
+        userList.forEach((item, idx) => {
+          const row = makeBaseRow(item);
+          row.draggable = true;
 
-        row.addEventListener('dragend', () => {
-          row.classList.remove('dragging');
-          clearDragIndicators();
-          dragSrcIdx = dragTgtIdx = dragPos = null;
+          const handle = document.createElement('span');
+          handle.className = 'drag-handle';
+          handle.textContent = '⠿';
+          handle.setAttribute('aria-hidden', 'true');
+          row.insertBefore(handle, row.firstChild);
+
+          // ── Drag events ──
+          row.addEventListener('dragstart', e => {
+            dragSrcIdx = idx;
+            e.dataTransfer.effectAllowed = 'move';
+            requestAnimationFrame(() => row.classList.add('dragging'));
+          });
+
+          row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            clearDragIndicators();
+            dragSrcIdx = dragTgtIdx = dragPos = null;
+          });
+
+          row.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = row.getBoundingClientRect();
+            const pos  = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+            clearDragIndicators();
+            row.classList.add(pos === 'top' ? 'drag-over-top' : 'drag-over-bottom');
+            dragTgtIdx = idx;
+            dragPos    = pos;
+          });
+
+          row.addEventListener('drop', e => {
+            e.preventDefault();
+            if (dragSrcIdx === null || dragSrcIdx === dragTgtIdx) return;
+            const [moved] = userList.splice(dragSrcIdx, 1);
+            let insertAt  = dragTgtIdx > dragSrcIdx ? dragTgtIdx - 1 : dragTgtIdx;
+            if (dragPos === 'bottom') insertAt += 1;
+            userList.splice(insertAt, 0, moved);
+            saveList();
+            renderList();
+          });
+
+          body.appendChild(row);
         });
-
-        row.addEventListener('dragover', e => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          const rect = row.getBoundingClientRect();
-          const pos  = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
-          clearDragIndicators();
-          row.classList.add(pos === 'top' ? 'drag-over-top' : 'drag-over-bottom');
-          dragTgtIdx = idx;
-          dragPos    = pos;
-        });
-
-        row.addEventListener('drop', e => {
-          e.preventDefault();
-          if (dragSrcIdx === null || dragSrcIdx === dragTgtIdx) return;
-          const [moved] = userList.splice(dragSrcIdx, 1);
-          let insertAt  = dragTgtIdx > dragSrcIdx ? dragTgtIdx - 1 : dragTgtIdx;
-          if (dragPos === 'bottom') insertAt += 1;
-          userList.splice(insertAt, 0, moved);
-          saveList();
-          renderList();
-        });
-
-        body.appendChild(row);
-      });
+      }
     }
 
     // ── Render Dropdown ────────────────────────────────────────
@@ -978,6 +1044,8 @@
         "5. ONE-LINE VERDICT — A single brutal, specific sentence summarizing their taste.",
         "6. CHARACTER PROFILE — What does the pattern of their favorite characters reveal about their idealized self-image or the type of person they find most compelling? Look for archetypes, recurring dynamics, or contradictions with the media list.",
         "",
+        "If you are not confident you know a character well enough to analyze them accurately, say so explicitly rather than inferring. Uncertain characters should be flagged, not fabricated.",
+        "",
         "Be direct. Do not hedge. Do not summarize plot. Assume the reader knows these works.",
         '',
         '**Anime watched:**',
@@ -1003,6 +1071,8 @@
         "3. WHAT THIS SAYS ABOUT THEM — What kind of person has this exact combination of titles in their favorites? Paint a picture. Be mean but accurate.",
         "4. THE BACKHANDED COMPLIMENT — Find one genuinely defensible thing about their taste and deliver it in the most condescending way possible.",
         "5. SENTENCE — One closing line, delivered like a verdict.",
+        "",
+        "If you are not confident you know a character well enough to analyze them accurately, say so explicitly rather than inferring. Uncertain characters should be flagged, not fabricated.",
         "",
         "Rules: No generic insults. Every joke must be specific to the actual titles listed. Assume they've read/watched far more than this — these are just their favorites, which makes it worse.",
         '',
@@ -1030,6 +1100,8 @@
         "4. GROWTH EDGE — What kinds of stories are conspicuously absent from their favorites — not because they dislike them, but because they might be too uncomfortable or unfamiliar to seek out?",
         "5b. CHARACTER MIRROR — If favorite characters are listed, what does the pattern reveal about who they wish they were, who they fear they are, or what relational dynamic they keep seeking out?",
         "6. CLINICIAN'S NOTE — A single honest, compassionate sentence summarizing what you'd want them to reflect on.",
+        "",
+        "If you are not confident you know a character well enough to analyze them accurately, say so explicitly rather than inferring. Uncertain characters should be flagged, not fabricated.",
         "",
         "Tone: Warm but clear-eyed. You care about them. You're also not going to let them off the hook. Do not pathologize, but do not minimize. Treat their taste as a genuine window into their interior life.",
         '',
@@ -1286,6 +1358,13 @@
       if (!userList.length) return;
       userList = [];
       saveList();
+      renderList();
+    });
+
+    // Group by type toggle
+    document.getElementById('btnGroupToggle').addEventListener('click', () => {
+      groupByType = !groupByType;
+      document.getElementById('btnGroupToggle').classList.toggle('active', groupByType);
       renderList();
     });
 
