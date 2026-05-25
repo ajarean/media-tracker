@@ -366,6 +366,12 @@
     .btn-copy:hover  { opacity: .88; transform: translateY(-1px); }
     .btn-copy:active { transform: none; opacity: .78; }
 
+    .action-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 4px 0;
+    }
+
     .btn-clear {
       width: 100%;
       padding: 8px;
@@ -409,6 +415,117 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
+
+    /* ── Grid Builder ───────────────────────────────────────── */
+    .grid-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .grid-section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .grid-size-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-grid {
+      flex: 1;
+      padding: 7px 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background var(--ease), color var(--ease), border-color var(--ease);
+    }
+
+    .btn-grid:hover { background: var(--hover); color: var(--text); }
+
+    /* ── Grid Modal ──────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .82);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-box {
+      position: relative;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      max-width: min(90vw, 560px);
+      width: 100%;
+      max-height: 92vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 4px 9px;
+      transition: color var(--ease), background var(--ease);
+    }
+
+    .modal-close:hover { color: var(--text); background: var(--hover); }
+
+    .modal-grid-img {
+      width: 100%;
+      border-radius: 6px;
+      display: block;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .btn-modal {
+      flex: 1;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity var(--ease), transform var(--ease);
+    }
+
+    .btn-modal:hover  { opacity: .85; transform: translateY(-1px); }
+    .btn-modal:active { transform: none; }
+
+    .btn-modal-save { background: var(--accent-anime); color: #fff; border: none; }
+    .btn-modal-copy { background: none; color: var(--text); border: 1px solid var(--border); }
 
     /* ── Theme Toggle ────────────────────────────────────────── */
     .theme-toggle {
@@ -505,6 +622,15 @@
         </div>
         <button id="btnCopy" class="btn-copy">📋 Copy LLM Prompt</button>
         <button id="btnClear" class="btn-clear">🗑 Clear List</button>
+        <hr class="action-divider" />
+        <div class="grid-section">
+          <span class="grid-section-label">Cover Grid</span>
+          <div class="grid-size-btns">
+            <button class="btn-grid" data-n="3">3 × 3</button>
+            <button class="btn-grid" data-n="4">4 × 4</button>
+            <button class="btn-grid" data-n="5">5 × 5</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -707,6 +833,7 @@
           ? r.aired?.prop?.from?.year
           : r.published?.prop?.from?.year;
         const coverUrl = r.images?.jpg?.small_image_url ?? null;
+        const largeUrl = r.images?.jpg?.large_image_url ?? r.images?.jpg?.image_url ?? null;
         const malId    = r.mal_id;
         const added    = inList(malId, type);
 
@@ -725,7 +852,7 @@
           row.appendChild(ck);
         } else {
           row.addEventListener('click', () => {
-            userList.push({ malId, title, year: year ?? null, type, coverUrl });
+            userList.push({ malId, title, year: year ?? null, type, coverUrl, largeUrl });
             saveList();
             renderList();
             renderDrop(dropCache);
@@ -880,7 +1007,147 @@
       toastTm = setTimeout(() => el.classList.remove('show'), 2000);
     }
 
+    // ── Cover Grid ─────────────────────────────────────────────
+    const CELL_W = 225;
+    const CELL_H = 315; // matches MAL's native image dimensions
+
+    const PH_BG = { anime: '#0f2340', manga: '#2a1040', lightnovel: '#3a2200' };
+    const PH_FG = { anime: '#3b82f6', manga: '#a855f7', lightnovel: '#f59e0b' };
+
+    function getHighResUrl(item) {
+      // Prefer explicitly stored large URL
+      if (item.largeUrl) return item.largeUrl;
+      // Derive large URL from MAL CDN thumbnail pattern: '...t.jpg' → '...l.jpg'
+      if (item.coverUrl) {
+        const derived = item.coverUrl.replace(/t\.(jpe?g|webp|png)$/i, 'l.$1');
+        if (derived !== item.coverUrl) return derived;
+      }
+      return item.coverUrl;
+    }
+
+    function loadCORSImage(url) {
+      return new Promise(resolve => {
+        if (!url) { resolve(null); return; }
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload  = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+    }
+
+    function drawCell(ctx, x, y, img, item) {
+      if (img) {
+        ctx.drawImage(img, x, y, CELL_W, CELL_H);
+      } else {
+        ctx.fillStyle = PH_BG[item.type] || '#1c1c1c';
+        ctx.fillRect(x, y, CELL_W, CELL_H);
+        ctx.fillStyle = PH_FG[item.type] || '#888';
+        ctx.font = `bold ${Math.round(CELL_W * 0.38)}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.title.charAt(0).toUpperCase(), x + CELL_W / 2, y + CELL_H / 2);
+      }
+    }
+
+    async function buildGrid(n) {
+      const needed = n * n;
+      if (userList.length < needed) {
+        const diff = needed - userList.length;
+        showToast(`Add ${diff} more title${diff !== 1 ? 's' : ''} for a ${n}×${n} grid`);
+        return;
+      }
+
+      const items  = userList.slice(0, needed);
+      const canvas = document.createElement('canvas');
+      canvas.width  = n * CELL_W;
+      canvas.height = n * CELL_H;
+      const ctx = canvas.getContext('2d');
+
+      const images = await Promise.all(items.map(item => loadCORSImage(getHighResUrl(item))));
+      items.forEach((item, i) => {
+        drawCell(ctx, (i % n) * CELL_W, Math.floor(i / n) * CELL_H, images[i], item);
+      });
+
+      showGridModal(canvas);
+    }
+
+    function showGridModal(canvas) {
+      document.getElementById('gridModal')?.remove();
+
+      let dataUrl = null;
+      try { dataUrl = canvas.toDataURL('image/png'); } catch {}
+
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      backdrop.id = 'gridModal';
+
+      const box = document.createElement('div');
+      box.className = 'modal-box';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'modal-close';
+      closeBtn.textContent = '×';
+      closeBtn.addEventListener('click', () => backdrop.remove());
+      box.appendChild(closeBtn);
+
+      if (dataUrl) {
+        const img = document.createElement('img');
+        img.className = 'modal-grid-img';
+        img.src = dataUrl;
+        img.alt = 'Cover grid';
+        box.appendChild(img);
+      } else {
+        canvas.className = 'modal-grid-img';
+        box.appendChild(canvas);
+      }
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'modal-actions';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn-modal btn-modal-save';
+      saveBtn.textContent = '💾 Save Image';
+      saveBtn.addEventListener('click', () => {
+        if (dataUrl) {
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = 'taste-grid.png';
+          a.click();
+        } else {
+          showToast('Right-click the image to save');
+        }
+      });
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn-modal btn-modal-copy';
+      copyBtn.textContent = '📋 Copy Image';
+      copyBtn.addEventListener('click', () => {
+        if (!dataUrl) { showToast('Right-click the image to copy'); return; }
+        canvas.toBlob(async blob => {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            showToast('Image copied!');
+          } catch {
+            showToast('Copy failed — use Save instead');
+          }
+        });
+      });
+
+      actionsDiv.appendChild(saveBtn);
+      actionsDiv.appendChild(copyBtn);
+      box.appendChild(actionsDiv);
+      backdrop.appendChild(box);
+      backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+      document.body.appendChild(backdrop);
+    }
+
     // ── Events ─────────────────────────────────────────────────
+
+    // Grid buttons
+    document.querySelectorAll('.btn-grid').forEach(btn => {
+      btn.addEventListener('click', () => buildGrid(parseInt(btn.dataset.n)));
+    });
 
     // Mode buttons
     const COPY_LABELS = {
