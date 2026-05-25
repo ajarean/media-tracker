@@ -581,6 +581,80 @@
     .btn-modal-save { background: var(--accent-anime); color: #fff; border: none; }
     .btn-modal-copy { background: none; color: var(--text); border: 1px solid var(--border); }
 
+    /* ── Prompt Modal ────────────────────────────────────────── */
+    .prompt-modal-box {
+      max-width: min(90vw, 680px);
+      align-items: stretch;
+    }
+
+    .prompt-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .prompt-modal-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .prompt-modal-btns {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .prompt-copy-btn {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 10px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      transition: background var(--ease), border-color var(--ease);
+    }
+
+    .prompt-copy-btn:hover { background: var(--hover); border-color: var(--muted); }
+
+    .prompt-close-btn {
+      font-family: inherit;
+      font-size: 16px;
+      line-height: 1;
+      padding: 4px 9px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color var(--ease), background var(--ease);
+    }
+
+    .prompt-close-btn:hover { color: var(--text); background: var(--hover); }
+
+    .prompt-textarea {
+      width: 100%;
+      min-height: 420px;
+      resize: vertical;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      outline: none;
+      transition: border-color var(--ease);
+    }
+
+    .prompt-textarea:focus { border-color: var(--muted); }
+
     /* ── Theme Toggle ────────────────────────────────────────── */
     .theme-toggle {
       position: fixed;
@@ -1189,6 +1263,67 @@
       }
     }
 
+    function showPromptModal() {
+      if (!userList.length) { showToast('Add some titles first'); return; }
+      document.getElementById('promptModal')?.remove();
+
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      backdrop.id = 'promptModal';
+
+      const box = document.createElement('div');
+      box.className = 'modal-box prompt-modal-box';
+
+      const hdr = document.createElement('div');
+      hdr.className = 'prompt-modal-header';
+
+      const title = document.createElement('span');
+      title.className = 'prompt-modal-title';
+      title.textContent = 'LLM Prompt';
+      hdr.appendChild(title);
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'prompt-modal-btns';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'prompt-copy-btn';
+      copyBtn.textContent = '📋 Copy';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'prompt-close-btn';
+      closeBtn.textContent = '×';
+
+      btnRow.appendChild(copyBtn);
+      btnRow.appendChild(closeBtn);
+      hdr.appendChild(btnRow);
+      box.appendChild(hdr);
+
+      const ta = document.createElement('textarea');
+      ta.className = 'prompt-textarea';
+      ta.value = buildPrompt();
+      ta.spellcheck = false;
+      box.appendChild(ta);
+
+      closeBtn.addEventListener('click', () => backdrop.remove());
+
+      copyBtn.addEventListener('click', async () => {
+        const text = ta.value;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          ta.select();
+          document.execCommand('copy');
+        }
+        copyBtn.textContent = '✓ Copied!';
+        setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 1500);
+      });
+
+      backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+      backdrop.appendChild(box);
+      document.body.appendChild(backdrop);
+      ta.focus();
+    }
+
     async function buildGrid(n) {
       const needed   = n * n;
       const eligible = userList.filter(i => i.type !== 'character');
@@ -1334,24 +1469,8 @@
       if (!e.target.closest('.search-wrap')) hideDrop();
     });
 
-    // Copy LLM Prompt
-    document.getElementById('btnCopy').addEventListener('click', async () => {
-      if (!userList.length) { showToast('Add some titles first'); return; }
-      const text = buildPrompt();
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        Object.assign(ta.style, { position: 'fixed', left: '-9999px', top: '0' });
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      showToast('Copied!');
-    });
+    // Copy LLM Prompt → open preview modal
+    document.getElementById('btnCopy').addEventListener('click', () => showPromptModal());
 
     // Clear list
     document.getElementById('btnClear').addEventListener('click', () => {
